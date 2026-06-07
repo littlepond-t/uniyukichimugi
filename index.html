@@ -270,7 +270,7 @@ const THEMES=[
 const T_UNI=0, T_MUGI=1, T_YUKI=2, T_BONE=3, T_BALL=4, T_PAW=5, T_RAINBOW=-1;
 const T_OBSTACLE=6;           // ★ お邪魔タイル（こわせる箱）
 const NTYPES=6;               // ランダム生成は 0..5 のみ（お邪魔は配置でのみ出現）
-const APP_VERSION='2026.06.07-f';   // ★最新かどうか確認用（更新のたびに変える）
+const APP_VERSION='2026.06.07-g';   // ★最新かどうか確認用（更新のたびに変える）
 const CARD_BG=['#eaf1f8','#f8efda','#f0e2d2','#fff6e8','#ffe2dd','#f1e6f8'];
 // 得点：ワンちゃん高め／グッズふつう／お邪魔は壊すと大量得点
 const PTS=[80,80,80,50,50,50];
@@ -282,6 +282,7 @@ let grid=[];           // grid[r][c] = tile | null
 let phase='input';     // input swap swapback clear fall lock
 let level=1, score=0, moves=0, target=0, combo=0;
 let reliefUsed=0;   // ★ そのステージで「手数おかわり」を使った回数
+let rainbowCooldown=0;  // ★ にじいろボールの連発防止カウンタ（手で減る）
 let selected=null;     // {r,c}
 let lastSwap=null;     // {a:{r,c}, b:{r,c}}
 let scoreGoalReached=false;
@@ -711,6 +712,7 @@ function applyTheme(n){
 function setupLevel(n){
   level=n; score=0; combo=0; scoreGoalReached=false; selected=null; lastSwap=null;
   reliefUsed=0;                                   // ★ステージ毎に救済回数リセット
+  rainbowCooldown=3;                              // ★開幕直後は出さない
   target=Math.round(1100 + (n-1)*620);            // ★目標を緩やかに（旧:850/面）
   moves=Math.max(20, 30 - Math.floor((n-1)/3));   // ★手数を増量（旧:最低16）
   applyTheme(n);
@@ -795,10 +797,25 @@ function hasMatch(){return findRuns().cells.size>0;}
 function hasMove(){
   for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){
     const here=grid[r][c]; if(!here||here.type===T_OBSTACLE)continue;
+    if(here.special==='rainbow')return true;   // にじいろは必ず使える手
     if(c+1<COLS){const o=grid[r][c+1];if(o&&o.type!==T_OBSTACLE){swapCells(r,c,r,c+1);if(hasMatch()){swapCells(r,c,r,c+1);return true;}swapCells(r,c,r,c+1);}}
     if(r+1<ROWS){const o=grid[r+1][c];if(o&&o.type!==T_OBSTACLE){swapCells(r,c,r+1,c);if(hasMatch()){swapCells(r,c,r+1,c);return true;}swapCells(r,c,r+1,c);}}
   }
   return false;
+}
+// ★ごほうび/救済で、盤面の1マスを「にじいろボール」に変える（即時・演出つき）
+function grantRainbow(){
+  const cands=[];
+  for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){
+    const t=grid[r][c];
+    if(t && t.type>=0 && t.type<NTYPES && !t.special) cands.push(t);
+  }
+  if(!cands.length) return false;
+  const t=cands[(Math.random()*cands.length)|0];
+  t.type=-1; t.special='rainbow';
+  spawnBeam('burst', t.r, t.c);   // キラッと出現演出
+  clearHold=0;                    // 次の消去には影響させない
+  return true;
 }
 function swapCells(r1,c1,r2,c2){
   const a=grid[r1][c1],b=grid[r2][c2];
@@ -1002,9 +1019,19 @@ function showCombo(txt){
 }
 
 function endResolve(){
+  const chain=combo;                 // この手で起きた連鎖段数
   combo=0;
+  if(rainbowCooldown>0) rainbowCooldown--;
   if(scoreGoalReached){ phase='lock'; setTimeout(winLevel,300); return; }
   if(moves<=0){ phase='lock'; setTimeout(loseLevel,300); return; }
+  // ★にじいろボール抽選（バランス重視）：大連鎖のごほうび or 手数ピンチの救済。連発はクールダウンで防止
+  if(rainbowCooldown<=0){
+    if(chain>=4){                                   // 大連鎖のごほうび
+      if(grantRainbow()){ rainbowCooldown=8; showToast('大れんさ！🌈にじいろボール プレゼント！'); }
+    }else if(moves<=4 && score<target && Math.random()<0.4){  // 手数ピンチの救済
+      if(grantRainbow()){ rainbowCooldown=8; showToast('ピンチに🌈にじいろボール！'); }
+    }
+  }
   if(!hasMove()){ showToast('うごけないので シャッフル！'); reshuffle(); }
   phase='input';
   captureSession();          // 1手ごとの安定状態をオートセーブ
