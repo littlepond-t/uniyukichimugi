@@ -270,7 +270,7 @@ const THEMES=[
 const T_UNI=0, T_MUGI=1, T_YUKI=2, T_BONE=3, T_BALL=4, T_PAW=5, T_RAINBOW=-1;
 const T_OBSTACLE=6;           // ★ お邪魔タイル（こわせる箱）
 const NTYPES=6;               // ランダム生成は 0..5 のみ（お邪魔は配置でのみ出現）
-const APP_VERSION='2026.06.07-d';   // ★最新かどうか確認用（更新のたびに変える）
+const APP_VERSION='2026.06.07-f';   // ★最新かどうか確認用（更新のたびに変える）
 const CARD_BG=['#eaf1f8','#f8efda','#f0e2d2','#fff6e8','#ffe2dd','#f1e6f8'];
 // 得点：ワンちゃん高め／グッズふつう／お邪魔は壊すと大量得点
 const PTS=[80,80,80,50,50,50];
@@ -507,9 +507,9 @@ function roundRectFill(ctx,x,y,w,h,r,col){ctx.fillStyle=col;ctx.beginPath();ctx.
 function buildTitlePoodles(){
   const cv=document.getElementById('titlePoodles');
   const ctx=cv.getContext('2d');ctx.clearRect(0,0,300,400);
-  // 下: ゆきち, 中: むぎ, 上: うに
-  drawTitleDog(ctx,150,300,52,T_YUKI);
-  drawTitleDog(ctx,150,200,50,T_MUGI);
+  // 上: うに, 中: ゆきち, 下: むぎ
+  drawTitleDog(ctx,150,300,52,T_MUGI);
+  drawTitleDog(ctx,150,200,50,T_YUKI);
   drawTitleDog(ctx,150,100,48,T_UNI);
 }
 function drawTitleDog(ctx,cx,cy,R,type){
@@ -1328,14 +1328,19 @@ function hasResumable(){ return !!store.session || (store.unlocked>1); }
 function resumeLevelNo(){ return store.session ? store.session.level : store.unlocked; }
 function totalStars(){ let n=0; for(const k in store.stars)n+=store.stars[k]; return n; }
 const RANKS=[
-  {min:0,      emoji:'🐶', name:'みならいプードル'},
-  {min:3000,   emoji:'🐾', name:'おさんぽプードル'},
-  {min:10000,  emoji:'🎀', name:'おしゃれプードル'},
-  {min:25000,  emoji:'✨', name:'もふもふプードル'},
-  {min:50000,  emoji:'🌟', name:'きらきらプードル'},
-  {min:100000, emoji:'👑', name:'プードルめいじん'},
-  {min:200000, emoji:'🏅', name:'プードルマスター'},
-  {min:400000, emoji:'💎', name:'でんせつのプードル'},
+  {min:0,       emoji:'🐶', name:'みならいプードル'},
+  {min:3000,    emoji:'🐾', name:'おさんぽプードル'},
+  {min:10000,   emoji:'🎀', name:'おしゃれプードル'},
+  {min:25000,   emoji:'✨', name:'もふもふプードル'},
+  {min:50000,   emoji:'🌟', name:'きらきらプードル'},
+  {min:100000,  emoji:'👑', name:'プードルめいじん'},
+  {min:200000,  emoji:'🏅', name:'プードルマスター'},
+  {min:400000,  emoji:'💎', name:'でんせつのプードル'},
+  {min:600000,  emoji:'🌈', name:'にじいろプードル'},
+  {min:1000000, emoji:'👼', name:'てんしのプードル'},
+  {min:2000000, emoji:'🚀', name:'ぎんがのプードル'},
+  {min:3500000, emoji:'🔥', name:'カリスマプードル'},
+  {min:5000000, emoji:'♾️', name:'プードルさま'},
 ];
 function rankFor(total){
   total=total||0; let idx=0;
