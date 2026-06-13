@@ -282,7 +282,7 @@ const THEMES=[
 const T_UNI=0, T_MUGI=1, T_YUKI=2, T_BONE=3, T_BALL=4, T_PAW=5, T_RAINBOW=-1;
 const T_OBSTACLE=6;           // ★ お邪魔タイル（こわせる箱）
 const NTYPES=6;               // ランダム生成は 0..5 のみ（お邪魔は配置でのみ出現）
-const APP_VERSION='2026.06.07-h';   // ★最新かどうか確認用（更新のたびに変える）
+const APP_VERSION='2026.06.07-i';   // ★最新かどうか確認用（更新のたびに変える）
 const CARD_BG=['#eaf1f8','#f8efda','#f0e2d2','#fff6e8','#ffe2dd','#f1e6f8'];
 // 得点：ワンちゃん高め／グッズふつう／お邪魔は壊すと大量得点
 const PTS=[80,80,80,50,50,50];
@@ -985,22 +985,33 @@ function mostCommonType(){
 // レインボー起動（swapで発動）
 function activateRainbow(){
   const ra=grid[lastSwap.a.r][lastSwap.a.c], rb=grid[lastSwap.b.r][lastSwap.b.c];
-  let rainbowCell, otherType;
-  if(ra&&ra.special==='rainbow'){rainbowCell=lastSwap.a;otherType=rb?rb.type:mostCommonType();}
-  else{rainbowCell=lastSwap.b;otherType=ra?ra.type:mostCommonType();}
-  if(otherType<0)otherType=mostCommonType();
+  const aR=ra&&ra.special==='rainbow', bR=rb&&rb.special==='rainbow';
   combo++;
   const toClear=new Set();
-  toClear.add(rainbowCell.r+','+rainbowCell.c);
-  spawnBeam('burst',rainbowCell.r,rainbowCell.c);
-  for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){const t=grid[r][c];if(t&&t.type===otherType)toClear.add(r+','+c);}
+  if(aR&&bR){
+    // 🌈＋🌈＝盤面ぜんぶ消し！（おじゃま箱もまとめて）
+    for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){ if(grid[r][c]) toClear.add(r+','+c); }
+    spawnBeam('burst',lastSwap.a.r,lastSwap.a.c);
+    spawnBeam('burst',lastSwap.b.r,lastSwap.b.c);
+    shake=Math.min(3.2, shake+1.7);
+    showCombo('🌈ぜんぶ消し🌈');
+  }else{
+    let rainbowCell, otherType;
+    if(aR){rainbowCell=lastSwap.a;otherType=rb?rb.type:mostCommonType();}
+    else{rainbowCell=lastSwap.b;otherType=ra?ra.type:mostCommonType();}
+    if(otherType<0)otherType=mostCommonType();
+    toClear.add(rainbowCell.r+','+rainbowCell.c);
+    spawnBeam('burst',rainbowCell.r,rainbowCell.c);
+    for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){const t=grid[r][c];if(t&&t.type===otherType)toClear.add(r+','+c);}
+    showCombo('✨にじいろ✨');
+  }
   expandSpecials(toClear);
   pendingSpecials=[];
   let pts=0;
-  for(const k of toClear){const[r,c]=k.split(',').map(Number);pts+=tilePoints(grid[r][c]);}
+  for(const k of toClear){const[r,c]=k.split(',').map(Number);if(grid[r][c])pts+=tilePoints(grid[r][c]);}
   score+=pts*combo;
   if(score>=target)scoreGoalReached=true;
-  updateHUD();sfx('special');showCombo('✨にじいろ✨');
+  updateHUD();sfx('special');
   for(const k of toClear){const[r,c]=k.split(',').map(Number);if(grid[r][c])grid[r][c].clearing=true;}
   spawnPopParticles(toClear);
   phase='clear';
