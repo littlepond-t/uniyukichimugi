@@ -79,6 +79,15 @@
     70%{opacity:1;transform:translate(-50%,-65%) scale(1) rotate(0);}
     100%{opacity:0;transform:translate(-50%,-90%) scale(.9);}}
   .comboGo{animation:comboAnim 1s ease forwards;}
+  #bbFx{position:absolute;left:50%;top:42%;transform:translate(-50%,-50%);z-index:8;pointer-events:none;
+    font-family:'Mochiy Pop One';color:#fff;font-size:46px;font-weight:900;opacity:0;text-align:center;line-height:1.1;
+    text-shadow:0 0 18px #ffae3a,0 4px 0 #e0843a,0 0 40px #fff;white-space:nowrap;}
+  #bbFx .x{display:block;font-size:24px;color:#ffe06a;margin-top:2px;}
+  @keyframes bbC{0%{opacity:0;transform:translate(-50%,-50%) scale(2.6) rotate(-6deg);}
+    28%{opacity:1;transform:translate(-50%,-50%) scale(1.5) rotate(0);}
+    72%{opacity:1;transform:translate(-50%,-50%) scale(0.30);}
+    100%{opacity:0;transform:translate(-50%,-50%) scale(0.05);}}
+  .bbgo{animation:bbC .6s cubic-bezier(.5,0,.7,1) forwards;}
 
   /* ---- overlays ---- */
   .overlay{position:absolute;inset:0;z-index:20;display:flex;flex-direction:column;
@@ -138,6 +147,7 @@
     <div class="hudrow">
       <div class="levelbadge" id="levelBadge">ステージ 1</div>
       <div class="iconbtns">
+        <button class="iconbtn" id="arcadeBtn" title="ゲームをえらぶ" onclick="parent.postMessage('poodle-home','*')">🕹️</button>
         <button class="iconbtn" id="muteBtn" title="おと">🔊</button>
         <button class="iconbtn" id="codeBtn2" title="ひきつぎ／ほぞん">🔑</button>
         <button class="iconbtn" id="homeBtn" title="ホーム">🏠</button>
@@ -154,6 +164,7 @@
   <div id="boardWrap">
     <canvas id="board"></canvas>
     <div id="comboPop"></div>
+    <div id="bbFx"></div>
   </div>
   <div class="credit">うに＆ゆきち＆むぎ ぷーどるパズル</div>
 </div>
@@ -168,6 +179,7 @@
     <button class="bigbtn" id="continueBtn" style="display:none;">つづきから ▶</button>
     <button class="bigbtn" id="startBtn">あそぶ ▶</button>
     <button class="ghostbtn" id="codeBtn">🔑 ひきつぎ／バックアップ</button>
+    <button class="ghostbtn" onclick="parent.postMessage('poodle-home','*')">🕹️ ゲームをえらぶ</button>
     <div class="howto">
       <b>🎮 あそびかた</b><br>
       ・となりどうしを いれかえて、おなじ子を<b>よこ・たて3つ</b>ならべると消えるよ<br>
@@ -282,7 +294,7 @@ const THEMES=[
 const T_UNI=0, T_MUGI=1, T_YUKI=2, T_BONE=3, T_BALL=4, T_PAW=5, T_RAINBOW=-1;
 const T_OBSTACLE=6;           // ★ お邪魔タイル（こわせる箱）
 const NTYPES=6;               // ランダム生成は 0..5 のみ（お邪魔は配置でのみ出現）
-const APP_VERSION='2026.06.07-i';   // ★最新かどうか確認用（更新のたびに変える）
+const APP_VERSION='2026.06.14-bigbang';   // ★最新かどうか確認用（更新のたびに変える）
 const CARD_BG=['#eaf1f8','#f8efda','#f0e2d2','#fff6e8','#ffe2dd','#f1e6f8'];
 // 得点：ワンちゃん高め／グッズふつう／お邪魔は壊すと大量得点
 const PTS=[80,80,80,50,50,50];
@@ -300,6 +312,7 @@ let lastSwap=null;     // {a:{r,c}, b:{r,c}}
 let scoreGoalReached=false;
 let running=false;
 let pendingSpecials=[]; // [{r,c,kind}]
+let pendingBigbang=0, bigbangTotal=0, bbT=0;  // ★ビッグバン
 let muted=false;
 
 function tileObj(type,r,c){
@@ -723,6 +736,7 @@ function applyTheme(n){
 }
 function setupLevel(n){
   level=n; score=0; combo=0; scoreGoalReached=false; selected=null; lastSwap=null;
+  pendingBigbang=0; bigbangTotal=0;
   reliefUsed=0;                                   // ★ステージ毎に救済回数リセット
   rainbowCooldown=3;                              // ★開幕直後は出さない
   target=Math.round(1100 + (n-1)*620);            // ★目標を緩やかに（旧:850/面）
@@ -922,6 +936,13 @@ function beginResolve(){
       protect.add(cell[0]+','+cell[1]);
     }
   }
+  // ★ L字/T字（横3＋縦3が交差し合計5マス以上）→ にじいろボール
+  const hRuns=runs.filter(x=>x.orient==='h'), vRuns=runs.filter(x=>x.orient==='v');
+  for(const h of hRuns){ const hr=h.cells[0][0];
+    for(const v of vRuns){ const vc=v.cells[0][1];
+      const inH=h.cells.some(([r,c])=>c===vc), inV=v.cells.some(([r,c])=>r===hr);
+      if(inH&&inV && (h.len+v.len-1)>=5){ const key=hr+','+vc;
+        if(!protect.has(key)){ pendingSpecials.push({r:hr,c:vc,kind:'rainbow',type:-1}); protect.add(key); } } } }
   // 消すセル集合
   let toClear=new Set(cells);
   // ★ マッチの上下左右に隣接するお邪魔箱を巻き込んで壊す
@@ -937,6 +958,7 @@ function beginResolve(){
   for(const k of obsHit)toClear.add(k);
   // 特殊（ビーム・レインボー）の発火展開（ビームはお邪魔も一掃する）
   expandSpecials(toClear);
+  addBigbang(toClear);                 // ★同時起動カウント→ビッグバン保留
   for(const k of protect)toClear.delete(k);
 
   // スコア（タイルごとに点が違う：ワンちゃん高め／お邪魔は大量）
@@ -977,6 +999,55 @@ function expandSpecials(set){
     }
   }
 }
+function floodRainbow(sr,sc){
+  const out=[], seen=new Set(), st=[[sr,sc]]; seen.add(sr+','+sc);
+  while(st.length){ const [r,c]=st.pop(); const t=grid[r]&&grid[r][c];
+    if(!t||t.special!=='rainbow') continue; out.push([r,c]);
+    for(const [dr,dc] of [[-1,0],[1,0],[0,-1],[0,1]]){ const nr=r+dr,nc=c+dc,k=nr+','+nc;
+      if(nr>=0&&nr<ROWS&&nc>=0&&nc<COLS&&!seen.has(k)){ seen.add(k); const o=grid[nr][nc]; if(o&&o.special==='rainbow') st.push([nr,nc]); } } }
+  return out;
+}
+// 同時に消える「にじいろボール」を数える（既存のボールのみ）
+function triggeredRainbowCells(toClear){
+  const out=[]; for(const k of toClear){ const [r,c]=k.split(',').map(Number); const t=grid[r]&&grid[r][c]; if(t&&t.special==='rainbow') out.push([r,c]); } return out;
+}
+function isOneCluster(cells){
+  if(cells.length<=1) return true;
+  const set=new Set(cells.map(([r,c])=>r+','+c)), seen=new Set([cells[0][0]+','+cells[0][1]]), st=[cells[0]];
+  while(st.length){ const [r,c]=st.pop(); for(const [dr,dc] of [[-1,0],[1,0],[0,-1],[0,1]]){ const k=(r+dr)+','+(c+dc); if(set.has(k)&&!seen.has(k)){ seen.add(k); st.push([r+dr,c+dc]); } } }
+  return seen.size===cells.length;
+}
+const BB_CONT={2:1,3:2,4:4,5:8,6:16};   // 連続位置
+const BB_SEP ={2:1,3:1,4:2,5:2,6:3};    // 離れた位置（3個/5個は通常カラーボール効果も付与）
+function addBigbang(toClear){
+  const cells=triggeredRainbowCells(toClear); const n=cells.length;
+  if(n<2) return;                                   // 単独は従来どおり（ビッグバン無し）
+  const cont=isOneCluster(cells); const cap=Math.min(n,6);
+  pendingBigbang += cont ? BB_CONT[cap] : BB_SEP[cap];
+  bigbangTotal = pendingBigbang;
+  if(!cont && (n===3||n===5)){                      // 離れ3/5：通常カラーボール効果も
+    const tt=mostCommonType(); for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){ const o=grid[r][c]; if(o&&o.type===tt) toClear.add(r+','+c); }
+  }
+}
+function bbText(main,sub){ const e=document.getElementById('bbFx'); e.innerHTML=main+(sub?('<span class="x">'+sub+'</span>'):''); e.classList.remove('bbgo'); void e.offsetWidth; e.classList.add('bbgo'); }
+function startBigbang(){
+  const remaining=pendingBigbang;                    // 残り（今回ぶん含む）
+  bbText('ビッグバン', remaining>1?('✕'+remaining):'');
+  pendingBigbang--;                                  // 1回ぶん消化
+  shake=Math.min(3.0,shake+1.2); sfx('special');
+  phase='bigbang'; bbT=0.6;
+}
+function bigbangExplode(){
+  // 盤面全消し（おじゃま箱も）＝豪快スコア
+  let pts=0; const toClear=new Set();
+  for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){ if(grid[r][c]){ toClear.add(r+','+c); pts+=tilePoints(grid[r][c]); } }
+  score+=pts*Math.max(2,combo);
+  if(score>=target) scoreGoalReached=true;
+  updateHUD();
+  for(const k of toClear){ const [r,c]=k.split(',').map(Number); if(grid[r][c]) grid[r][c].clearing=true; }
+  spawnPopParticles(toClear); shake=Math.min(3.6,shake+2.6); sfx('burst'); clearHold=0;
+  phase='clear';                                     // 既存の clear→落下→fall に乗る
+}
 function mostCommonType(){
   const cnt={};let best=0,bt=0;
   for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){const t=grid[r][c];if(t&&t.type>=0&&t.type!==T_OBSTACLE){cnt[t.type]=(cnt[t.type]||0)+1;if(cnt[t.type]>best){best=cnt[t.type];bt=t.type;}}}
@@ -985,33 +1056,23 @@ function mostCommonType(){
 // レインボー起動（swapで発動）
 function activateRainbow(){
   const ra=grid[lastSwap.a.r][lastSwap.a.c], rb=grid[lastSwap.b.r][lastSwap.b.c];
-  const aR=ra&&ra.special==='rainbow', bR=rb&&rb.special==='rainbow';
+  let rainbowCell, otherType;
+  if(ra&&ra.special==='rainbow'){rainbowCell=lastSwap.a;otherType=rb?rb.type:mostCommonType();}
+  else{rainbowCell=lastSwap.b;otherType=ra?ra.type:mostCommonType();}
+  if(otherType<0)otherType=mostCommonType();
   combo++;
   const toClear=new Set();
-  if(aR&&bR){
-    // 🌈＋🌈＝盤面ぜんぶ消し！（おじゃま箱もまとめて）
-    for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){ if(grid[r][c]) toClear.add(r+','+c); }
-    spawnBeam('burst',lastSwap.a.r,lastSwap.a.c);
-    spawnBeam('burst',lastSwap.b.r,lastSwap.b.c);
-    shake=Math.min(3.2, shake+1.7);
-    showCombo('🌈ぜんぶ消し🌈');
-  }else{
-    let rainbowCell, otherType;
-    if(aR){rainbowCell=lastSwap.a;otherType=rb?rb.type:mostCommonType();}
-    else{rainbowCell=lastSwap.b;otherType=ra?ra.type:mostCommonType();}
-    if(otherType<0)otherType=mostCommonType();
-    toClear.add(rainbowCell.r+','+rainbowCell.c);
-    spawnBeam('burst',rainbowCell.r,rainbowCell.c);
-    for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){const t=grid[r][c];if(t&&t.type===otherType)toClear.add(r+','+c);}
-    showCombo('✨にじいろ✨');
-  }
+  // ★連結したにじいろボールを すべて巻き込む（連続位置の同時起動）
+  for(const [rr,cc] of floodRainbow(rainbowCell.r,rainbowCell.c)){ toClear.add(rr+','+cc); spawnBeam('burst',rr,cc); }
+  for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){const t=grid[r][c];if(t&&t.type===otherType)toClear.add(r+','+c);}
   expandSpecials(toClear);
+  addBigbang(toClear);                 // ★同時起動カウント→ビッグバン保留
   pendingSpecials=[];
   let pts=0;
-  for(const k of toClear){const[r,c]=k.split(',').map(Number);if(grid[r][c])pts+=tilePoints(grid[r][c]);}
+  for(const k of toClear){const[r,c]=k.split(',').map(Number);pts+=tilePoints(grid[r][c]);}
   score+=pts*combo;
   if(score>=target)scoreGoalReached=true;
-  updateHUD();sfx('special');
+  updateHUD();sfx('special');showCombo('✨にじいろ✨');
   for(const k of toClear){const[r,c]=k.split(',').map(Number);if(grid[r][c])grid[r][c].clearing=true;}
   spawnPopParticles(toClear);
   phase='clear';
@@ -1042,6 +1103,8 @@ function showCombo(txt){
 }
 
 function endResolve(){
+  if(pendingBigbang>0 && !scoreGoalReached){ startBigbang(); return; }   // ★保留ビッグバンを順次発動（目標到達で打ち切り）
+  pendingBigbang=0; bigbangTotal=0;
   const chain=combo;                 // この手で起きた連鎖段数
   combo=0;
   if(rainbowCooldown>0) rainbowCooldown--;
@@ -1182,7 +1245,11 @@ function update(dt){
     }
   }else if(phase==='fall'){
     let done=settle(speed);
-    if(done){snap(); if(hasMatch()) beginResolve(); else endResolve();}
+    if(done){ snap();
+      if(pendingBigbang>0 && !scoreGoalReached){ endResolve(); }   // 次のビッグバンへ
+      else if(hasMatch()) beginResolve(); else endResolve(); }
+  }else if(phase==='bigbang'){
+    bbT-=dt; if(bbT<=0){ bigbangExplode(); }
   }
   // particles
   for(const p of parts){p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=0.12*dt;p.life-=0.04*dt;}
