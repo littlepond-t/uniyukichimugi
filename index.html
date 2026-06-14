@@ -87,7 +87,7 @@
     28%{opacity:1;transform:translate(-50%,-50%) scale(1.5) rotate(0);}
     72%{opacity:1;transform:translate(-50%,-50%) scale(0.30);}
     100%{opacity:0;transform:translate(-50%,-50%) scale(0.05);}}
-  .bbgo{animation:bbC .6s cubic-bezier(.5,0,.7,1) forwards;}
+  .bbgo{animation:bbC .72s cubic-bezier(.5,0,.7,1) forwards;}
 
   /* ---- overlays ---- */
   .overlay{position:absolute;inset:0;z-index:20;display:flex;flex-direction:column;
@@ -294,7 +294,7 @@ const THEMES=[
 const T_UNI=0, T_MUGI=1, T_YUKI=2, T_BONE=3, T_BALL=4, T_PAW=5, T_RAINBOW=-1;
 const T_OBSTACLE=6;           // ★ お邪魔タイル（こわせる箱）
 const NTYPES=6;               // ランダム生成は 0..5 のみ（お邪魔は配置でのみ出現）
-const APP_VERSION='2026.06.14-bigbang';   // ★最新かどうか確認用（更新のたびに変える）
+const APP_VERSION='2026.06.14-bigbang2';   // ★最新かどうか確認用（更新のたびに変える）
 const CARD_BG=['#eaf1f8','#f8efda','#f0e2d2','#fff6e8','#ffe2dd','#f1e6f8'];
 // 得点：ワンちゃん高め／グッズふつう／お邪魔は壊すと大量得点
 const PTS=[80,80,80,50,50,50];
@@ -1034,8 +1034,8 @@ function startBigbang(){
   const remaining=pendingBigbang;                    // 残り（今回ぶん含む）
   bbText('ビッグバン', remaining>1?('✕'+remaining):'');
   pendingBigbang--;                                  // 1回ぶん消化
-  shake=Math.min(3.0,shake+1.2); sfx('special');
-  phase='bigbang'; bbT=0.6;
+  shake=Math.min(3.2,shake+1.4); sfx('special');
+  phase='bigbang'; bbT=0.72;
 }
 function bigbangExplode(){
   // 盤面全消し（おじゃま箱も）＝豪快スコア
@@ -1044,8 +1044,13 @@ function bigbangExplode(){
   score+=pts*Math.max(2,combo);
   if(score>=target) scoreGoalReached=true;
   updateHUD();
+  fx.push({kind:'bbwave', r:ROWS/2-0.5, c:COLS/2-0.5, t:0, sp:0.011});
+  const ccx=COLS*TILE/2, ccy=ROWS*TILE/2;
+  for(let i=0;i<90;i++){ const a=Math.random()*7, d=Math.random()*TILE*4.5; sparkleAt(ccx+Math.cos(a)*d, ccy+Math.sin(a)*d, 1, i%3?'#ffd0e6':'#fff'); }
+  shake=Math.min(5.5, shake+4.0); sfx('burst'); setTimeout(()=>sfx('burst'),120);
+  clearHold=Math.max(clearHold, 34);
   for(const k of toClear){ const [r,c]=k.split(',').map(Number); if(grid[r][c]) grid[r][c].clearing=true; }
-  spawnPopParticles(toClear); shake=Math.min(3.6,shake+2.6); sfx('burst'); clearHold=0;
+  spawnPopParticles(toClear);
   phase='clear';                                     // 既存の clear→落下→fall に乗る
 }
 function mostCommonType(){
@@ -1334,7 +1339,7 @@ function render(){
           bctx.fillStyle=g;bctx.fillRect(x-thick,lo,thick*2,hi-lo);
           bctx.fillStyle='rgba(255,255,255,'+a+')';bctx.fillRect(x-thick*0.16,lo,thick*0.32,hi-lo);
         }
-      }else{ // burst（爆発）
+      }else if(f.kind==='burst'){ // burst（爆発）
         const cx=f.c*TILE+TILE/2, cy=f.r*TILE+TILE/2;
         const R=TILE*(0.6+t*7.5);
         // 二重リング
@@ -1350,6 +1355,17 @@ function render(){
         // 放射状の光線（多め・回転）
         bctx.strokeStyle='rgba(255,242,185,'+(a*0.85)+')';bctx.lineWidth=Math.max(1,TILE*0.1*fade);bctx.lineCap='round';
         for(let i=0;i<16;i++){const ang=i/16*7+t*2.4;const r1=TILE*0.5,r2=R*1.08;bctx.beginPath();bctx.moveTo(cx+Math.cos(ang)*r1,cy+Math.sin(ang)*r1);bctx.lineTo(cx+Math.cos(ang)*r2,cy+Math.sin(ang)*r2);bctx.stroke();}
+      } else if(f.kind==='bbwave'){ // ★ビッグバン大爆発（盤面全体）
+        const cx=boardCssW/2, cy=boardCssH/2, maxR=Math.hypot(boardCssW,boardCssH);
+        const fl=Math.max(0,1-t/0.5);
+        bctx.fillStyle='rgba(255,255,255,'+(fl*0.92)+')'; bctx.fillRect(0,0,boardCssW,boardCssH);
+        for(let i=0;i<3;i++){ const tt=t-i*0.09; if(tt<=0)continue; const Rr=maxR*Math.min(1,tt*1.7); const aa=Math.max(0,1-tt)*0.95;
+          bctx.strokeStyle='rgba(255,'+(210-i*40)+',130,'+aa+')'; bctx.lineWidth=Math.max(2,TILE*0.55*(1-tt)); bctx.beginPath(); bctx.arc(cx,cy,Rr,0,7); bctx.stroke(); }
+        bctx.strokeStyle='rgba(255,246,205,'+(Math.max(0,1-t)*0.85)+')'; bctx.lineWidth=Math.max(1,TILE*0.18*(1-t)); bctx.lineCap='round';
+        for(let i=0;i<24;i++){ const ang=i/24*7+t*1.6, rr=maxR*Math.min(1,t*1.5); bctx.beginPath(); bctx.moveTo(cx+Math.cos(ang)*TILE,cy+Math.sin(ang)*TILE); bctx.lineTo(cx+Math.cos(ang)*rr,cy+Math.sin(ang)*rr); bctx.stroke(); }
+        const g=bctx.createRadialGradient(cx,cy,0,cx,cy,maxR*0.6);
+        g.addColorStop(0,'rgba(255,255,255,'+(fl)+')'); g.addColorStop(0.45,'rgba(255,180,220,'+(fl*0.7)+')'); g.addColorStop(1,'rgba(170,200,255,0)');
+        bctx.fillStyle=g; bctx.beginPath(); bctx.arc(cx,cy,maxR*0.6,0,7); bctx.fill();
       }
     }
     bctx.restore();
