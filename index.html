@@ -294,7 +294,7 @@ const THEMES=[
 const T_UNI=0, T_MUGI=1, T_YUKI=2, T_BONE=3, T_BALL=4, T_PAW=5, T_RAINBOW=-1;
 const T_OBSTACLE=6;           // ★ お邪魔タイル（こわせる箱）
 const NTYPES=6;               // ランダム生成は 0..5 のみ（お邪魔は配置でのみ出現）
-const APP_VERSION='2026.06.14-bigbang2';   // ★最新かどうか確認用（更新のたびに変える）
+const APP_VERSION='2026.06.14-bigbang3';   // ★最新かどうか確認用（更新のたびに変える）
 const CARD_BG=['#eaf1f8','#f8efda','#f0e2d2','#fff6e8','#ffe2dd','#f1e6f8'];
 // 得点：ワンちゃん高め／グッズふつう／お邪魔は壊すと大量得点
 const PTS=[80,80,80,50,50,50];
@@ -1039,9 +1039,15 @@ function startBigbang(){
 }
 function bigbangExplode(){
   // 盤面全消し（おじゃま箱も）＝豪快スコア
-  let pts=0; const toClear=new Set();
-  for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){ if(grid[r][c]){ toClear.add(r+','+c); pts+=tilePoints(grid[r][c]); } }
+  let pts=0, rbCount=0; const toClear=new Set();
+  for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){ const t=grid[r][c]; if(t){ toClear.add(r+','+c); pts+=tilePoints(t); if(t.special==='rainbow') rbCount++; } }
   score+=pts*Math.max(2,combo);
+  // ★巻き込んだカラーボールは無駄死にしない：ボーナス点＋控えめに追加ビッグバン
+  if(rbCount>0){
+    score += rbCount*300;                                   // ボーナス点
+    if(rbCount>=2){ const extra=Math.min(rbCount-1, 3); pendingBigbang+=extra; bigbangTotal+=extra; }  // 追加（上限3／補充にカラーボールは出ないので暴走しない）
+    showCombo('🌈×'+rbCount+' ボーナス！');
+  }
   if(score>=target) scoreGoalReached=true;
   updateHUD();
   fx.push({kind:'bbwave', r:ROWS/2-0.5, c:COLS/2-0.5, t:0, sp:0.011});
